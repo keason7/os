@@ -2,5 +2,20 @@
 
 ## Boot assembly
 
-nasm boot.asm -f bin -o boot.bin
-qemu-system-i386 -hda boot.bin
+Build bootloader
+
+```bash
+make all
+```
+
+Clean generated files
+
+```bash
+make clean
+```
+
+Test with qemu
+
+```bash
+qemu-system-i386 -hda ./bin/boot.bin
+```

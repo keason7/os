@@ -1,3 +1,6 @@
+; set code as 16 bits
+[BITS 16]
+
 ; cpu starts in real mode and bios loads this code at address 0x7c00
 ; set the origin at adress 0x7C00
 ; all labels and addresses are relative to this
