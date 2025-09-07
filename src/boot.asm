@@ -10,9 +10,17 @@ ADDR_ORIGIN equ 0x7C00
 
 ; 0x08: points to the 2nd entry in the GDT table
 ; 0x10: points to the 3rd entry in the GDT table
+; 0x18: points to the 4th entry in the GDT table
 OFFSET_32_CODE equ 0x08
 OFFSET_32_DATA equ 0x10
-; OFFSET_64_CODE  equ 0x18
+OFFSET_64_CODE  equ 0x18
+
+; paging tables addresses
+PML4T_ADDR equ 0x3000
+PDPT_ADDR equ 0x4000
+PDT_ADDR equ 0x5000
+PT_ADDR equ 0x6000
+
 
 ; first enter real mode where the CPU has
 ; less than 1 MB of RAM available for use
@@ -85,15 +93,15 @@ gdt_start:
     db 11001111b ; flags (4 bits) + limit (4 bits)
     db 0x00 ; base (8 bits)
 
-    ; ; code segment 64 bits long mode
-    ; ; in long mode since paging is mandatory, base and limit
-    ; ; are ignored and can be set to 0
-    ; dw 0x0000 ; limit (16 bits)
-    ; dw 0x0000 ; base (16 bits)
-    ; db 0x00 ; base (8 bits)
-    ; db 10011010b ; access byte (8 bits)
-    ; db 10100000b ; flags (4 bits) + limit (4 bits)
-    ; db 0x00 ; base (8 bits)
+    ; code segment 64 bits long mode
+    ; in long mode since paging is mandatory, base and limit
+    ; are ignored and can be set to 0
+    dw 0x0000 ; limit (16 bits)
+    dw 0x0000 ; base (16 bits)
+    db 0x00 ; base (8 bits)
+    db 10011010b ; access byte (8 bits)
+    db 10100000b ; flags (4 bits) + limit (4 bits)
+    db 0x00 ; base (8 bits)
 
 gdt_end:
 
@@ -125,7 +133,7 @@ load_protected_mode:
     ; copy control register bit 0 value in eax
     mov eax, cr0
     ; set it to 1
-    or al, 1
+    or  eax, 1
     ; copy value to cr0 to enable protected mode
     mov cr0, eax
 
@@ -156,70 +164,116 @@ protected_mode:
     mov ebp, 0x9C00        
     mov esp, ebp
 
+
+
+load_long_mode:
+    ; setup paging
+    ; - PML4 (Page Map Level 4) is the top-level table (512 entries)
+    ; - PDPT (Page Directory Pointer Table) is level 3 (512 entries)
+    ; - PD (Page Directory) is level 2 (512 entries)
+    ; - PT (Page Table) is level 1 (512 entries)
+    ; each entry is 8 bytes, so 8 * 512 = 4096 so usually 4KB
+
+    ; move PML4 table address to cr3 so the CPU know top level location
+    mov edi, PML4T_ADDR
+    mov cr3, edi
+
+    ; set eax register to 0
+    xor eax, eax
+    ; load 4096 into the ecx register
+    ; ecx will act as the counter
+    mov ecx, 4096
+    ; repeat the following stosd 4096 times
+    ; store eax (= 0) into memory at [ES:EDI] and advance edi by 4 bytes
+    ; 4096 * 4 bytes = 16384 bytes and each of the 4 tables is supposed to be 4096 bytes
+    ; so it allocate with zeros, the space for PML4, PDPT, PD and PT
+    rep stosd
+
+    ; set destination index to the beginning of the PML4 table
+    mov edi, PML4T_ADDR
+    ; writes the PDPT address into the first PML4 entry and marks it as present and read / write
+    mov dword [edi], PDPT_ADDR & 0xFFFFFFFFFF000 | 1 | 2
+
+    ; set destination index to the beginning of the PDPT table
+    mov edi, PDPT_ADDR
+    ; writes the PDT address into the first PDPT entry and marks it as present and read / write
+    mov dword [edi], PDT_ADDR & 0xFFFFFFFFFF000 | 1 | 2
+
+    ; set destination index to the beginning of the PD table
+    mov edi, PDT_ADDR
+    ; writes the PT address into the first PDT entry and marks it as present and read / write
+    mov dword [edi], PT_ADDR & 0xFFFFFFFFFF000 | 1 | 2
+
+    ; set destination index to the beginning of the PT table to fill page table entries
+    mov edi, PT_ADDR
+    ; set initial page flags: present and read / write (1 | 2 = OR(00000001, 00000010) = 0000 0011)
+    ; bit 0 and 1 define present and read / write of a PT entry
+    mov ebx, 1 | 2
+    ; 512 entries for a page
+    mov ecx, 512
+
+    ; TODO: implement more paging initialization
+    ; here we setup one page (PT) as each previous level point
+    ; to the next layer without initializing entries
+    ; we setup one 4KB page where each entry point to 4KB memory allocation segment
+    ; 512 * 4KB = 2MB of mapped memory
+
+    ; setup PT entries
+    .SetEntry:
+        ; write the entry (physical address + flags)
+        mov dword [edi], ebx
+        ; next entry points 4096 bytes higher in physical memory
+        add ebx, 0x1000
+        ; move to next page table entry (8 bytes)
+        add edi, 8
+        ; repeat 512 times
+        loop .SetEntry
+
+    ; enable pae
+    ; expands page tables to support 64-bit addresses
+    mov edx, cr4
+    or edx, (1 << 5 )
+    mov cr4, edx
+
+    ; set lme
+    ; tells the CPU that it is allowed to execute 64-bit instructions once paging is enabled
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, (1 << 8)
+    wrmsr
+
+    ; enable paging
+    mov eax, cr0
+    or eax, (1 << 31 )
+    mov cr0, eax
+
+    ; far jump to 64-bit code segment selector (OFFSET_64_CODE) and label (long_mode)
+    ; this flushes the instruction pipeline and reloads CS with the 64-bit descriptor
+    ; required to officially switch into long mode execution
+    jmp OFFSET_64_CODE:long_mode
+
+
+; set code as 64 bits
+[BITS 64]
+
+; enter protected mode where the CPU has a maximum of 256 TB of RAM
+; enables mandatory memory paging and general registers extended to
+; 64 bits (and add new registers such as SSE)
+long_mode:
+    mov ax, OFFSET_32_DATA
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    mov rsp, 0x00009000
+
     jmp $
-
-
-; load_long_mode:
-;     ; set cr4 bit number 5 to 1
-;     ; this enable PAE (Physical Address Extension) which allows 32-bit CPU to access 
-;     ; more than 4gb RAM by extending physical addr to 36 bits (64gb RAM)
-;     ; PAE required to enable long mode paging
-;     mov eax, cr4
-;     or  eax, (1 << 5)
-;     mov cr4, eax
-
-;     mov eax, 0x00009000
-;     or  eax, 0x3
-;     mov dword [0x00008000], eax
-;     mov dword [0x00008000 + 4], 0x0
-
-;     mov eax, 0x0000A000
-;     or  eax, 0x3
-;     mov dword [0x00009000], eax
-;     mov dword [0x00009000 + 4], 0x0
-
-;     mov eax, 0x00000000
-;     or  eax, 0x83
-;     mov dword [0x0000A000], eax
-;     mov dword [0x0000A000 + 4], 0x0
-
-;     mov eax, 0x00200000
-;     or  eax, 0x83
-;     mov dword [0x0000A000 + 8], eax
-;     mov dword [0x0000A000 + 4 + 8], 0x0
-
-;     mov ecx, 0xC0000080
-;     rdmsr
-;     or  eax, (1 << 8)
-;     wrmsr
-
-;     mov eax, 0x00008000
-;     mov cr3, eax
-
-;     mov eax, cr0
-;     or  eax, 0x80000000
-;     mov cr0, eax
-
-;     jmp OFFSET_64_CODE:long_mode
-
-
-; [BITS 64]
-; long_mode:
-;     mov ax, OFFSET_32_DATA
-;     mov ds, ax
-;     mov es, ax
-;     mov fs, ax
-;     mov gs, ax
-;     mov ss, ax
-
-;     mov rsp, 0x00009000
-
-;     jmp $
 
 
 ; fill remaining bytes - 2  with zeros so this code + zeros + signature = 512 bytes
 ; $ = current address, $$ = start of section (0x7C00)
 times 510-($-$$) db 0
 ; boot sector 0xAA55 to be recognized as bootable disk
-db 0x55
-db 0xAA
+dw 0xAA55

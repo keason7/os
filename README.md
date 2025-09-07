@@ -5,7 +5,7 @@
 Build bootloader
 
 ```bash
-make all
+make build
 ```
 
 Clean generated files
@@ -14,8 +14,8 @@ Clean generated files
 make clean
 ```
 
-Test with qemu
+Test bootloader with qemu on x86_64
 
 ```bash
-qemu-system-i386 -hda ./bin/boot.bin
+make run
 ```
