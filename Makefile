@@ -5,8 +5,8 @@
 # nasm 64 bits compiling
 NASM := nasm -f elf64
 # compiler name and flags for 64 bits
-CC := gcc
-CFLAGS := -std=c99 -ffreestanding -m64 -mno-red-zone -fno-builtin -nostdinc -Wall -Wextra
+CC := x86_64-elf-gcc
+CFLAGS := -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2
 
 # output build directory
 BUILD_DIR := build
@@ -54,6 +54,7 @@ $(BUILD_DIR)/boot/paging.o: src/boot/paging.asm
 $(BUILD_DIR)/kernel/kernel.o: src/kernel/kernel.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+
 
 # compile project
 all: $(BOOT_IMAGE)
