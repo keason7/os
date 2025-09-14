@@ -28,6 +28,21 @@ void disable_cursor();
 void update_cursor(int x, int y);
 
 /**
+ * @brief Print a character to the VGA screen at current cursor position.
+ *
+ * @param c Input character.
+ */
+static void putc(char c);
+
+/**
+ * @brief Write a null-terminated string to the VGA text buffer.
+ * Print characters in memory one by one until the last \0 which stops the loop.
+ *
+ * @param str A pointer to a null-terminated string to print.
+ */
+static void puts(const char *str);
+
+/**
  * @brief Clear the entire screen and reset cursor.
  *
  * This function fills the VGA text buffer with blank spaces

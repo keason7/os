@@ -12,11 +12,33 @@
 // port to read / write selected register data for the text mode cursor
 #define VGA_PORT_DATA 0x3D5
 
-// first 8 bits: char, last 8 bits: foreground and background
-static uint16_t text_color = 0x0F00;
+enum vga_color {
+	VGA_COLOR_BLACK = 0,
+	VGA_COLOR_BLUE = 1,
+	VGA_COLOR_GREEN = 2,
+	VGA_COLOR_CYAN = 3,
+	VGA_COLOR_RED = 4,
+	VGA_COLOR_MAGENTA = 5,
+	VGA_COLOR_BROWN = 6,
+	VGA_COLOR_LIGHT_GREY = 7,
+	VGA_COLOR_DARK_GREY = 8,
+	VGA_COLOR_LIGHT_BLUE = 9,
+	VGA_COLOR_LIGHT_GREEN = 10,
+	VGA_COLOR_LIGHT_CYAN = 11,
+	VGA_COLOR_LIGHT_RED = 12,
+	VGA_COLOR_LIGHT_MAGENTA = 13,
+	VGA_COLOR_LIGHT_BROWN = 14,
+	VGA_COLOR_WHITE = 15,
+};
+
 static uint16_t *vga_buffer = (uint16_t *)VGA_ADDRESS;
 static uint8_t cursor_row = 0;
 static uint8_t cursor_col = 0;
+
+// first 8 bits: char, last 8 bits: foreground and background
+// << 8: foreground bits
+// << 12: background bits
+static uint16_t text_color = VGA_COLOR_BLACK << 12 | VGA_COLOR_WHITE << 8 | 0x0000;
 
 /**
  * @brief Enable VGA text mode cursor. Character cell is 16x16 px.
@@ -68,6 +90,40 @@ void update_cursor(int x, int y) {
 }
 
 /**
+ * @brief Print a character to the VGA screen at current cursor position.
+ *
+ * @param c Input character.
+ */
+static void putc(char c) {
+	if (c == '\n') {
+		cursor_row++;
+		cursor_col = 0;
+	} else {
+		// 16 bits: last 8 bits = text_color, first 8 bits = c
+		vga_buffer[cursor_row * VGA_COLS + cursor_col] = c | text_color;
+		cursor_col++;
+		if (cursor_col >= VGA_COLS) {
+			cursor_col = 0;
+			cursor_row++;
+		}
+	}
+	update_cursor(cursor_col, cursor_row);
+}
+
+/**
+ * @brief Write a null-terminated string to the VGA text buffer.
+ * Print characters in memory one by one until the last \0 which stops the loop.
+ *
+ * @param str A pointer to a null-terminated string to print.
+ */
+static void puts(const char *str) {
+	while (*str) {
+		putc(*str++);
+	}
+	update_cursor(cursor_col, cursor_row);
+}
+
+/**
  * @brief Clear the entire screen and reset cursor.
  *
  * This function fills the VGA text buffer with blank spaces
@@ -90,4 +146,6 @@ void clear_screen(void) {
 	enable_cursor(15, 15);
 	// set position to (0, 0)
 	update_cursor(cursor_col, cursor_row);
+
+	puts("Hi from C !");
 }
