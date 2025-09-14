@@ -28,6 +28,11 @@ void disable_cursor();
 void update_cursor(int x, int y);
 
 /**
+ * @brief Scroll rows to delete first one and have a new last one.
+ */
+void scroll_screen(void);
+
+/**
  * @brief Print a character to the VGA screen at current cursor position.
  *
  * @param c Input character.
