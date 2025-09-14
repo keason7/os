@@ -9,21 +9,20 @@ CC := x86_64-elf-gcc
 CFLAGS := -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2
 
 # directories
-SRC_BOOT := src/boot
-SRC_KERNEL := src/kernel
+SRC := src
 BUILD_DIR := build
 
-# find all sources
-BOOT_ASM_SRCS := $(wildcard $(SRC_BOOT)/**/*.asm) $(wildcard $(SRC_BOOT)/*.asm)
-KERNEL_C_SRCS := $(wildcard $(SRC_KERNEL)/**/*.c) $(wildcard $(SRC_KERNEL)/*.c)
+# find asm and c source files path
+SRC_ASM = $(shell find $(SRC) -type f -name '*.asm')
+SRC_C = $(shell find $(SRC) -type f -name '*.c')
 
+# replace path from src/ entry folder to build/
+# ex: src/kernel/kernel.c -> build/kernel/kernel.c.o
+OBJS_ASM := $(patsubst $(SRC)/%.asm,$(BUILD_DIR)/%.asm.o,$(SRC_ASM))
+OBJS_C := $(patsubst $(SRC)/%.c,$(BUILD_DIR)/%.c.o,$(SRC_C))
 
-# build object list from sources
-BOOT_OBJS := $(patsubst $(SRC_BOOT)/%.asm,$(BUILD_DIR)/boot/%.o,$(BOOT_ASM_SRCS))
-KERNEL_OBJS := $(patsubst $(SRC_KERNEL)/%.c,$(BUILD_DIR)/kernel/%.o,$(KERNEL_C_SRCS))
-
-# generated object files
-OBJS := $(BOOT_OBJS) $(KERNEL_OBJS)
+# group asm and c object paths
+OBJS := $(OBJS_ASM) $(OBJS_C)
 
 # final boot image for qemu
 BOOT_IMAGE := $(BUILD_DIR)/boot_image.bin
@@ -40,15 +39,16 @@ $(BOOT_IMAGE): $(LINKED_OBJ)
 	objcopy -O binary $< $@
 
 # compile sources (asm) into object files
-$(BUILD_DIR)/boot/%.o: $(SRC_BOOT)/%.asm
+$(BUILD_DIR)/%.asm.o: $(SRC)/%.asm
 	@mkdir -p $(dir $@)
 	$(NASM) $< -o $@
 
 # compile sources (c) into object files
-# -I allow to include .h files without relative imports
-$(BUILD_DIR)/kernel/%.o: $(SRC_KERNEL)/%.c
+# arg -I allow to include .h files without relative imports
+$(BUILD_DIR)/%.c.o: $(SRC)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I $(SRC_KERNEL) -c $< -o $@
+	$(CC) $(CFLAGS) -I $(SRC)/kernel -c $< -o $@
+
 
 # compile project
 all: $(BOOT_IMAGE)
