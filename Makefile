@@ -17,6 +17,7 @@ BUILD_DIR := build
 BOOT_ASM_SRCS := $(wildcard $(SRC_BOOT)/**/*.asm) $(wildcard $(SRC_BOOT)/*.asm)
 KERNEL_C_SRCS := $(wildcard $(SRC_KERNEL)/**/*.c) $(wildcard $(SRC_KERNEL)/*.c)
 
+
 # build object list from sources
 BOOT_OBJS := $(patsubst $(SRC_BOOT)/%.asm,$(BUILD_DIR)/boot/%.o,$(BOOT_ASM_SRCS))
 KERNEL_OBJS := $(patsubst $(SRC_KERNEL)/%.c,$(BUILD_DIR)/kernel/%.o,$(KERNEL_C_SRCS))
@@ -44,9 +45,10 @@ $(BUILD_DIR)/boot/%.o: $(SRC_BOOT)/%.asm
 	$(NASM) $< -o $@
 
 # compile sources (c) into object files
+# -I allow to include .h files without relative imports
 $(BUILD_DIR)/kernel/%.o: $(SRC_KERNEL)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -I $(SRC_KERNEL) -c $< -o $@
 
 # compile project
 all: $(BOOT_IMAGE)
