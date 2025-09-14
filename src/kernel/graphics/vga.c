@@ -90,11 +90,33 @@ void update_cursor(int x, int y) {
 }
 
 /**
+ * @brief Scroll rows to delete first one and have a new last one.
+ */
+void scroll_screen(void) {
+	// copy each row except first one and copy it to previous row
+	for (int row = 1; row < VGA_ROWS; row++) {
+		for (int col = 0; col < VGA_COLS; col++) {
+			vga_buffer[(row - 1) * VGA_COLS + col] = vga_buffer[row * VGA_COLS + col];
+		}
+	}
+
+	// clear last row
+	for (int col = 0; col < VGA_COLS; col++) {
+		vga_buffer[(VGA_ROWS - 1) * VGA_COLS + col] = ' ' | text_color;
+		;
+	}
+
+	// move cursor to start of last row
+	cursor_row = VGA_ROWS - 1;
+	cursor_col = 0;
+}
+
+/**
  * @brief Print a character to the VGA screen at current cursor position.
  *
  * @param c Input character.
  */
-static void putc(char c) {
+void putc(char c) {
 	if (c == '\n') {
 		cursor_row++;
 		cursor_col = 0;
@@ -107,6 +129,10 @@ static void putc(char c) {
 			cursor_row++;
 		}
 	}
+
+	if (cursor_row >= VGA_ROWS) {
+		scroll_screen();
+	}
 	update_cursor(cursor_col, cursor_row);
 }
 
@@ -116,7 +142,7 @@ static void putc(char c) {
  *
  * @param str A pointer to a null-terminated string to print.
  */
-static void puts(const char *str) {
+void puts(const char *str) {
 	while (*str) {
 		putc(*str++);
 	}
@@ -133,11 +159,9 @@ void clear_screen(void) {
 	// disable existing cursor
 	disable_cursor();
 
-	// set blank char and its color in 16 bits attribut
-	uint16_t blank = ' ' | text_color;
-
 	for (int i = 0; i < VGA_COLS * VGA_ROWS; i++) {
-		vga_buffer[i] = blank;
+		// set blank char and it's color attribut (8 bits + 8 bits)
+		vga_buffer[i] = ' ' | text_color;
 	}
 	cursor_row = 0;
 	cursor_col = 0;
@@ -147,5 +171,5 @@ void clear_screen(void) {
 	// set position to (0, 0)
 	update_cursor(cursor_col, cursor_row);
 
-	puts("Hi from C !");
+	puts("Hi there\n");
 }
