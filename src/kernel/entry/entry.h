@@ -1,5 +1,5 @@
-#ifndef KERNEL_H
-#define KERNEL_H
+#ifndef ENTRY_H
+#define ENTRY_H
 
 void kernel_entry(void);
 

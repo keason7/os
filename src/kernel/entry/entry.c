@@ -1,4 +1,4 @@
-#include "kernel.h"
+#include "entry.h"
 
 #include "graphics/vga.h"
 
