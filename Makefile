@@ -8,53 +8,47 @@ NASM := nasm -f elf64
 CC := x86_64-elf-gcc
 CFLAGS := -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2
 
-# output build directory
+# directories
+SRC_BOOT := src/boot
+SRC_KERNEL := src/kernel
 BUILD_DIR := build
+
+# find all sources
+BOOT_ASM_SRCS := $(wildcard $(SRC_BOOT)/**/*.asm) $(wildcard $(SRC_BOOT)/*.asm)
+KERNEL_C_SRCS := $(wildcard $(SRC_KERNEL)/**/*.c) $(wildcard $(SRC_KERNEL)/*.c)
+
+
+# build object list from sources
+BOOT_OBJS := $(patsubst $(SRC_BOOT)/%.asm,$(BUILD_DIR)/boot/%.o,$(BOOT_ASM_SRCS))
+KERNEL_OBJS := $(patsubst $(SRC_KERNEL)/%.c,$(BUILD_DIR)/kernel/%.o,$(KERNEL_C_SRCS))
+
+# generated object files
+OBJS := $(BOOT_OBJS) $(KERNEL_OBJS)
 
 # final boot image for qemu
 BOOT_IMAGE := $(BUILD_DIR)/boot_image.bin
-
-# linked object file
+# linker object file
 LINKED_OBJ := $(BUILD_DIR)/linked.o
-
-# generated object files
-OBJS := \
-	$(BUILD_DIR)/boot/boot_stage_1.o \
-	$(BUILD_DIR)/boot/boot_stage_2.o \
-	$(BUILD_DIR)/boot/gdt_32.o \
-	$(BUILD_DIR)/boot/gdt_64.o \
-	$(BUILD_DIR)/boot/paging.o \
-	$(BUILD_DIR)/kernel/kernel.o
-
-# convert the linked ELF object into a raw binary boot image
-$(BOOT_IMAGE): $(LINKED_OBJ)
-	objcopy -O binary $< $@
 
 # link all object files into a single linked ELF object
 $(LINKED_OBJ): $(OBJS)
 	@mkdir -p $(dir $@)
 	ld -T linker.ld -o $@ $^
 
-# compile sources into object files
-$(BUILD_DIR)/boot/boot_stage_1.o: src/boot/boot_stage_1.asm
-	@mkdir -p $(dir $@)
-	$(NASM) $< -o $@
-$(BUILD_DIR)/boot/boot_stage_2.o: src/boot/boot_stage_2.asm
-	@mkdir -p $(dir $@)
-	$(NASM) $< -o $@
-$(BUILD_DIR)/boot/gdt_32.o: src/boot/gdt/gdt_32.asm
-	@mkdir -p $(dir $@)
-	$(NASM) $< -o $@
-$(BUILD_DIR)/boot/gdt_64.o: src/boot/gdt/gdt_64.asm
-	@mkdir -p $(dir $@)
-	$(NASM) $< -o $@
-$(BUILD_DIR)/boot/paging.o: src/boot/paging.asm
-	@mkdir -p $(dir $@)
-	$(NASM) $< -o $@
-$(BUILD_DIR)/kernel/kernel.o: src/kernel/kernel.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+# convert ELF to flat binary
+$(BOOT_IMAGE): $(LINKED_OBJ)
+	objcopy -O binary $< $@
 
+# compile sources (asm) into object files
+$(BUILD_DIR)/boot/%.o: $(SRC_BOOT)/%.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $< -o $@
+
+# compile sources (c) into object files
+# -I allow to include .h files without relative imports
+$(BUILD_DIR)/kernel/%.o: $(SRC_KERNEL)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -I $(SRC_KERNEL) -c $< -o $@
 
 # compile project
 all: $(BOOT_IMAGE)
