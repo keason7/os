@@ -37,7 +37,7 @@ void scroll_screen(void);
  *
  * @param c Input character.
  */
-static void putc(char c);
+void putc(char c);
 
 /**
  * @brief Write a null-terminated string to the VGA text buffer.
@@ -45,7 +45,7 @@ static void putc(char c);
  *
  * @param str A pointer to a null-terminated string to print.
  */
-static void puts(const char *str);
+void puts(const char *str);
 
 /**
  * @brief Clear the entire screen and reset cursor.
